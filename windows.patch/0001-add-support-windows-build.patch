@@ -1,0 +1,69 @@
+From d47077dbb742a74a84c4c7950c0c25d5f4d07c2d Mon Sep 17 00:00:00 2001
+From: loopher <jasmine_bear@outlook.com>
+Date: Tue, 12 Apr 2022 14:07:48 +0800
+Subject: [PATCH] add support windows build
+
+---
+ include/llvm/CryptoUtils.h                 |  2 +-
+ lib/Transforms/Obfuscation/CryptoUtils.cpp | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/include/llvm/CryptoUtils.h b/include/llvm/CryptoUtils.h
+index 8b2426d8..d86c3d00 100644
+--- a/include/llvm/CryptoUtils.h
++++ b/include/llvm/CryptoUtils.h
+@@ -32,7 +32,7 @@ extern ManagedStatic<CryptoUtils> cryptoutils;
+ #define BYTE(x, n) (((x) >> (8 * (n))) & 0xFF)
+ 
+ #if defined(__i386) || defined(__i386__) || defined(_M_IX86) ||                \
+-    defined(INTEL_CC)
++     defined(INTEL_CC) || defined(_WIN64) || defined(_WIN32)
+ 
+ #ifndef ENDIAN_LITTLE
+ #define ENDIAN_LITTLE
+diff --git a/lib/Transforms/Obfuscation/CryptoUtils.cpp b/lib/Transforms/Obfuscation/CryptoUtils.cpp
+index 089321b2..6c3a90ce 100644
+--- a/lib/Transforms/Obfuscation/CryptoUtils.cpp
++++ b/lib/Transforms/Obfuscation/CryptoUtils.cpp
+@@ -620,10 +620,38 @@ void CryptoUtils::populate_pool() {
+   idx = 0;
+ }
+ 
++#include <time.h>
++class WinDevRandom
++{
++public:
++  WinDevRandom() {}
++  ~WinDevRandom() {}
++  size_t read(char *key, size_t sz) {
++    time_t tm = time(NULL);
++    size_t msz = std::min(sz, sizeof(tm));
++    memcpy(key, &tm, msz);
++    if (sz > sizeof(tm)) {
++      memcpy(key + msz, this, sz - msz);
++    }
++    m_last_read = sz;
++    return sz;
++  }
++  void close() {}
++  size_t gcount() {
++    return m_last_read;
++  }
++  explicit operator bool() {
++    return true;
++  }
++private:
++  size_t m_last_read;
++};
+ bool CryptoUtils::prng_seed() {
+ 
+ #if defined(__linux__)
+   std::ifstream devrandom("/dev/urandom");
++#elif defined(__WIN32)
++  WinDevRandom devrandom;
+ #else
+   std::ifstream devrandom("/dev/random");
+ #endif
+-- 
+2.12.0.windows.1
+
